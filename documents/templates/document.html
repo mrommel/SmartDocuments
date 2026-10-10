@@ -10,8 +10,14 @@
     <div class="card"><div class="card-body p-4"><h2 class="h4">Extracted metadata</h2>
         {% if document.status == 'failed' %}
         <div class="alert alert-warning">Extraction failed: {{ document.extraction_error }}</div>
-        {% elif document.status == 'pending' %}<div class="alert alert-info">Extraction is pending.</div>{% endif %}
-        {% if document.status != 'complete' %}<form action="{% url 'document_retry' project.pk document.pk %}" method="post" class="mb-3">{% csrf_token %}<button class="btn btn-outline-primary" type="submit">Retry extraction</button></form>{% endif %}
+        {% elif document.status == 'pending' %}<div class="alert alert-info">Analysis queued. Refresh this page to see results.</div>
+        {% elif document.status == 'processing' %}<div class="alert alert-info">Analyzing document. Refresh this page to see results.</div>{% endif %}
+        {% if document.status == 'failed' or document.status == 'complete' %}
+        <form action="{% url 'document_retry' project.pk document.pk %}" method="post" class="mb-3">
+            {% csrf_token %}
+            <button class="btn btn-outline-primary" type="submit">{% if document.status == 'complete' %}Re-do analysis{% else %}Retry extraction{% endif %}</button>
+        </form>
+        {% endif %}
         {% if document.metadata %}
         <dl class="row mb-0"><dt class="col-sm-3">Title</dt><dd class="col-sm-9">{{ document.metadata.title|default:'—' }}</dd>
             <dt class="col-sm-3">Summary</dt><dd class="col-sm-9">{{ document.metadata.summary|default:'—' }}</dd>

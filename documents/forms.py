@@ -62,7 +62,7 @@ class DocumentForm(forms.ModelForm):
     def clean_file(self):
         asset = self.cleaned_data["file"]
         if Path(asset.name).suffix.lower() not in SUPPORTED_EXTENSIONS:
-            raise forms.ValidationError("Supported formats: PDF, DOCX, TXT, MD, CSV and JSON.")
+            raise forms.ValidationError("Supported formats: PDF, DOCX, TXT, MD, CSV, JSON, JPEG, PNG and TIFF.")
         if asset.size > MAX_UPLOAD_BYTES:
             raise forms.ValidationError("Files must be 10 MB or smaller.")
         return asset

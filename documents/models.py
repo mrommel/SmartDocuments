@@ -45,6 +45,7 @@ class Tag(models.Model):
 class Document(models.Model):
 	class Status(models.TextChoices):
 		PENDING = "pending", "Pending"
+		PROCESSING = "processing", "Processing"
 		COMPLETE = "complete", "Complete"
 		FAILED = "failed", "Failed"
 

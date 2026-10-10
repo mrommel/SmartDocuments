@@ -2,13 +2,14 @@ from pathlib import Path
 import logging
 
 from django.contrib import messages
+from django.db import transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .extraction import extract_metadata
 from .forms import CollectionForm, DocumentForm, OrganizationForm, ProjectForm, TagForm
 from .models import Document, Project
+from .tasks import analyze_document
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +70,22 @@ def tag_create(request, pk):
 	})
 
 
-def process_document(document):
+def queue_document(document):
 	document.status = Document.Status.PENDING
 	document.extraction_error = ""
 	document.save(update_fields=["status", "extraction_error"])
-	try:
-		document.metadata = extract_metadata(document)
-		document.status = Document.Status.COMPLETE
-	except Exception as exc:
-		logger.exception("Document metadata extraction failed for document %s", document.pk)
-		document.status = Document.Status.FAILED
-		document.extraction_error = str(exc)[:1000] if isinstance(exc, (ValueError, OSError)) else "Could not read document or contact local LLM."
-	document.save(update_fields=["metadata", "status", "extraction_error"])
+
+	def enqueue():
+		try:
+			analyze_document.enqueue(document.pk)
+		except Exception:
+			logger.exception("Could not queue analysis for document %s", document.pk)
+			Document.objects.filter(pk=document.pk, status=Document.Status.PENDING).update(
+				status=Document.Status.FAILED,
+				extraction_error="Could not queue analysis. Check the task backend and retry.",
+			)
+
+	transaction.on_commit(enqueue)
 
 
 def document_upload(request, pk):
@@ -93,14 +98,11 @@ def document_upload(request, pk):
 		document.file_size = form.cleaned_data["file"].size
 		document.save()
 		form.save_m2m()
-		process_document(document)
-		if document.status == Document.Status.FAILED:
-			messages.warning(request, "File saved, but metadata extraction failed. You can retry it later.")
-		else:
-			messages.success(request, "Document uploaded and metadata extracted.")
+		queue_document(document)
+		messages.success(request, "Document saved and queued for analysis. Refresh the page to see results.")
 		return redirect("document_detail", pk=project.pk, document_id=document.pk)
 	return render(request, "form.html", {
-		"form": form, "project": project, "heading": "Upload document", "submit_label": "Upload and extract",
+		"form": form, "project": project, "heading": "Upload document", "submit_label": "Upload and queue analysis",
 		"upload": True,
 	})
 
@@ -122,11 +124,11 @@ def document_detail(request, pk, document_id):
 @require_POST
 def document_retry(request, pk, document_id):
 	document = _document(pk, document_id)
-	process_document(document)
-	if document.status == Document.Status.FAILED:
-		messages.warning(request, "Metadata extraction failed again.")
+	if document.status in (Document.Status.PENDING, Document.Status.PROCESSING):
+		messages.info(request, "Document analysis is already queued or in progress.")
 	else:
-		messages.success(request, "Metadata extracted successfully.")
+		queue_document(document)
+		messages.success(request, "Document queued for analysis again.")
 	return redirect("document_detail", pk=pk, document_id=document_id)
 
 

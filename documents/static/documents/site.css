@@ -13,6 +13,7 @@ a { color: #176eaa; }
 .form-card input, .form-card textarea, .form-card select { display: block; width: 100%; padding: .5rem .75rem; border: 1px solid #c5d9e7; border-radius: .4rem; background: #fff; }
 .form-card input[type=file] { padding: .4rem; }
 .tag-pill { background: #e1f1ff; color: #155b90; }
-.status-complete { background: #dcf3e8; color: #216e46; }
-.status-pending { background: #e1f1ff; color: #155b90; }
-.status-failed { background: #fff1d6; color: #825509; }
+.status-complete { background: #dcf3e8; color: #216e46; padding: 0.65em; }
+.status-pending { background: #e1f1ff; color: #155b90; padding: 0.65em; }
+.status-processing { background: #e1f1ff; color: #155b90; padding: 0.65em; }
+.status-failed { background: #fff1d6; color: #825509; padding: 0.65em; }

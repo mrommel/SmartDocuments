@@ -4,7 +4,7 @@
 {% if project %}<a href="{% url 'project_detail' project.pk %}" class="text-decoration-none">← {{ project.name }}</a>{% endif %}
 <div class="card form-card mx-auto mt-3"><div class="card-body p-4">
     <h1 class="h3 mb-4">{{ heading }}</h1>
-    {% if upload %}<p class="text-muted">Project: <strong>{{ project.name }}</strong>. Supported: PDF, DOCX, TXT, MD, CSV, JSON (up to 10 MB). Extraction may take a few seconds.</p>{% endif %}
+    {% if upload %}<p class="text-muted">Project: <strong>{{ project.name }}</strong>. Supported: PDF, DOCX, TXT, MD, CSV, JSON, JPEG, PNG and TIFF (up to 10 MB). Analysis runs in the background; images and scanned PDFs require a vision-capable local model.</p>{% endif %}
     <form method="post" {% if upload %}enctype="multipart/form-data"{% endif %}>
         {% csrf_token %}
         {% for field in form %}

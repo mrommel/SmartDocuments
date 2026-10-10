@@ -12,10 +12,12 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from django.utils.translation import gettext_lazy as _
+from dotenv import load_dotenv
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env', override=False)
 
 
 # Quick-start development settings - unsuitable for production
@@ -34,6 +36,7 @@ ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
     'documents',
+    'django_tasks_db',
 	# 'dal',
 	# 'dal_select2',
 	# 'liststyle',
@@ -90,6 +93,10 @@ DATABASES = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+
+TASKS = {
+    'default': {'BACKEND': 'django_tasks_db.backend.DatabaseBackend'},
 }
 
 

@@ -16,6 +16,9 @@ venv: $(VENV)/bin/activate
 run: venv
 	./$(VENV)/bin/python3.12 manage.py runserver 9100
 
+run_task_queue: venv
+	./$(VENV)/bin/python3.12 manage.py db_worker
+
 make_migrations: venv
 	./$(VENV)/bin/python3.12 manage.py makemigrations
 	./$(VENV)/bin/python3.12 manage.py sqlmigrate documents 0001  # change this

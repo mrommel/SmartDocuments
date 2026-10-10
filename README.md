@@ -11,9 +11,15 @@ python3 -m venv .venv
 .venv/bin/python manage.py runserver 9100
 ```
 
-Open http://127.0.0.1:9100/. Start OMLX separately with a model loaded and its OpenAI-compatible API listening at `http://127.0.0.1:8000/v1`. The application selects the first model from `/v1/models`; set `OMLX_MODEL` to choose a specific model, or `OMLX_URL` to change the API base URL.
+Run the database task worker in a separate terminal (keep it running while using the site):
 
-Create a project before uploading. Within each project you can create collections and tags, upload PDF, DOCX, TXT, MD, CSV or JSON files up to 10 MB, and add files to multiple collections and tags. The document details page displays the extracted title, summary, type, date and keywords. Files remain saved if extraction fails; use **Retry extraction** when the model is available again. Extraction runs during the upload request (up to two 30-second local API calls). Scanned PDFs without embedded text need OCR before uploading.
+```sh
+.venv/bin/python manage.py db_worker
+```
+
+Open http://127.0.0.1:9100/. Start OMLX separately with a model loaded and its OpenAI-compatible API listening at `http://127.0.0.1:8000/v1`. Django loads `.env` from the project root at startup (existing process environment variables take precedence). Set `OMLX_API_KEY` in `.env` to the key required by OMLX; it is sent as a Bearer token on both `/models` and `/chat/completions`. The application selects the first model from `/v1/models`; set `OMLX_MODEL` to choose a specific model, or `OMLX_URL` to change the API base URL. **Image and scanned-PDF analysis needs a vision-capable OMLX model** supporting OpenAI-style `image_url` messages. Configure `OMLX_MODEL` if the first loaded model cannot analyze images. Model discovery times out after 30 seconds; chat completion allows 600 seconds by default for slow local inference. Set `OMLX_CHAT_TIMEOUT` in `.env` to a positive number of seconds if inference needs longer. Restart the worker after changing `.env`, then retry failed documents.
+
+Create a project before uploading. Within each project you can create collections and tags, upload PDF, DOCX, TXT, MD, CSV, JSON, JPEG, PNG or TIFF files up to 10 MB, and add files to multiple collections and tags. Uploads are queued in the database; the worker analyzes the document in the background. Refresh the document details page to see the extracted title, summary, type, date and keywords. Files remain saved if analysis fails; use **Retry extraction** when the model is available again. For completed documents, use **Re-do analysis** to queue a fresh analysis of the original file. Previous metadata stays visible until successful analysis replaces it. Textless PDFs are rendered to images (up to the first three pages) for vision analysis. Only the first frame of multi-page TIFFs is analyzed.
 
 Run tests with `.venv/bin/python manage.py test documents`.
 
