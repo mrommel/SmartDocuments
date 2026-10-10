@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block content %}
+<a href="{% url 'dashboard' %}" class="text-decoration-none">← All projects</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 my-3">
+    <div><h1 class="mb-1">{{ project.name }}</h1><p class="text-muted mb-0">{{ project.description }}</p></div>
+    <a class="btn btn-primary" href="{% url 'document_upload' project.pk %}">+ Upload document</a>
+</div>
+<div class="row g-4 mt-1">
+    <aside class="col-lg-3">
+        <div class="card mb-3"><div class="card-body"><h2 class="h6">Collections</h2>
+            <ul class="list-unstyled mb-3"><li><a href="{% url 'project_detail' project.pk %}">All documents</a></li>
+            {% for collection in collections %}<li class="mt-2"><a href="?collection={{ collection.pk }}">{{ collection.name }}</a></li>{% endfor %}</ul>
+            <a href="{% url 'collection_create' project.pk %}" class="btn btn-outline-primary btn-sm">+ New collection</a>
+        </div></div>
+        <div class="card"><div class="card-body"><h2 class="h6">Tags</h2>
+            <div class="mb-3">{% for tag in tags %}<a class="badge rounded-pill tag-pill text-decoration-none me-1 mb-1" href="?tag={{ tag.pk }}">{{ tag.name }}</a>{% empty %}<span class="text-muted small">No tags yet</span>{% endfor %}</div>
+            <a href="{% url 'tag_create' project.pk %}" class="btn btn-outline-primary btn-sm">+ New tag</a>
+        </div></div>
+    </aside>
+    <section class="col-lg-9"><h2 class="h4 mb-3">Documents</h2>
+        {% for document in documents %}
+        <a href="{% url 'document_detail' project.pk document.pk %}" class="card project-card text-decoration-none mb-3"><div class="card-body">
+            <div class="d-flex justify-content-between gap-2"><h3 class="h5 mb-1">{{ document.metadata.title|default:document.original_name }}</h3><span class="badge status-{{ document.status }}">{{ document.get_status_display }}</span></div>
+            <p class="text-muted small mb-2">{{ document.original_name }} · {{ document.uploaded_at|date:'M j, Y' }}</p>
+            <p class="text-body mb-2">{{ document.metadata.summary|truncatechars:180 }}</p>
+            {% for collection in document.collections.all %}<span class="badge bg-light text-primary border me-1">{{ collection.name }}</span>{% endfor %}
+            {% for tag in document.tags.all %}<span class="badge tag-pill me-1">{{ tag.name }}</span>{% endfor %}
+        </div></a>
+        {% empty %}<div class="card"><div class="card-body text-muted">No documents found. Upload a document to get started.</div></div>{% endfor %}
+    </section>
+</div>
+{% endblock %}

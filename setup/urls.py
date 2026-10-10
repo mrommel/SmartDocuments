@@ -14,15 +14,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
 
-from setup import settings
-
 urlpatterns = [
-	path('', RedirectView.as_view(url='documents/dashboard', permanent=True), name='dashboard'),
+    path('', RedirectView.as_view(pattern_name='dashboard', permanent=False)),
     path('documents/', include('documents.urls')),
     path('admin/', admin.site.urls),
 	path('.well-known/appspecific/com.chrome.devtools.json', RedirectView.as_view(
@@ -30,6 +27,4 @@ urlpatterns = [
     )),
 ]
 
-if settings.DEBUG:
-	urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

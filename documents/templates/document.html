@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ document.original_name }}{% endblock %}
+{% block content %}
+<a href="{% url 'project_detail' project.pk %}" class="text-decoration-none">← {{ project.name }}</a>
+<div class="d-flex flex-wrap justify-content-between gap-3 align-items-start mt-3 mb-4">
+    <div><h1 class="h2">{{ document.metadata.title|default:document.original_name }}</h1><div class="text-muted">{{ document.original_name }} · {{ document.file_size|filesizeformat }} · {{ document.uploaded_at|date:'M j, Y' }}</div></div>
+    <a href="{% url 'document_download' project.pk document.pk %}" class="btn btn-primary">Download original</a>
+</div>
+<div class="row g-4"><section class="col-lg-8">
+    <div class="card"><div class="card-body p-4"><h2 class="h4">Extracted metadata</h2>
+        {% if document.status == 'failed' %}
+        <div class="alert alert-warning">Extraction failed: {{ document.extraction_error }}</div>
+        {% elif document.status == 'pending' %}<div class="alert alert-info">Extraction is pending.</div>{% endif %}
+        {% if document.status != 'complete' %}<form action="{% url 'document_retry' project.pk document.pk %}" method="post" class="mb-3">{% csrf_token %}<button class="btn btn-outline-primary" type="submit">Retry extraction</button></form>{% endif %}
+        {% if document.metadata %}
+        <dl class="row mb-0"><dt class="col-sm-3">Title</dt><dd class="col-sm-9">{{ document.metadata.title|default:'—' }}</dd>
+            <dt class="col-sm-3">Summary</dt><dd class="col-sm-9">{{ document.metadata.summary|default:'—' }}</dd>
+            <dt class="col-sm-3">Type</dt><dd class="col-sm-9">{{ document.metadata.document_type|default:'—' }}</dd>
+            <dt class="col-sm-3">Date</dt><dd class="col-sm-9">{{ document.metadata.date|default:'—' }}</dd>
+            <dt class="col-sm-3">Keywords</dt><dd class="col-sm-9">{{ document.metadata.keywords|join:', '|default:'—' }}</dd></dl>
+        {% else %}<p class="text-muted mb-0">No metadata available yet.</p>{% endif %}
+    </div></div>
+</section><aside class="col-lg-4"><div class="card"><div class="card-body p-4">
+    <h2 class="h5">Organize document</h2>
+    <p class="small text-muted">Select one or more collections and custom tags in {{ project.name }}.</p>
+    <form method="post">{% csrf_token %}
+        {% for field in form %}<div class="mb-3"><label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+            {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}
+        <button class="btn btn-primary" type="submit">Save organization</button>
+    </form>
+    <div class="mt-3 small"><a href="{% url 'collection_create' project.pk %}">Create collection</a> · <a href="{% url 'tag_create' project.pk %}">Create tag</a></div>
+</div></div></aside></div>
+{% endblock %}

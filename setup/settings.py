@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from django.utils.translation import gettext_lazy as _
 
-import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,7 +45,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 	'django.contrib.humanize',
 	# extensions
-	'slippers',  # UI components: https://mitchel.me/slippers/docs/installation/
 	'django_admin_inline_paginator',
 	'django_extensions',
 	'crispy_forms',
@@ -77,9 +75,6 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
-			"builtins": [
-				"slippers.templatetags.slippers"
-			],
         },
     },
 ]
@@ -140,9 +135,6 @@ LOCALE_PATHS = [BASE_DIR / 'tracking' / 'locale', ]
 
 STATIC_URL = 'static/'
 
-STATICFILES_DIRS = [
-	BASE_DIR / 'tracking' / 'static',
-]
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'

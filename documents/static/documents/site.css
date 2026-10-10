@@ -1,0 +1,18 @@
+:root { --bs-primary: #2479b9; --bs-primary-rgb: 36, 121, 185; }
+body { background: #f2f8fd; color: #193b55; min-height: 100vh; }
+.hero { background: linear-gradient(120deg, #dcefff, #f7fcff); border: 1px solid #c8e6fa; }
+.card { border-color: #d7e9f6; border-radius: 1rem; box-shadow: 0 2px 12px rgba(28, 100, 150, .05); }
+.project-card { color: #193b55; transition: transform .15s, box-shadow .15s; }
+.project-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(28, 100, 150, .13); }
+.btn-primary { background: #2479b9; border-color: #2479b9; }
+.btn-primary:hover { background: #165e98; border-color: #165e98; }
+.btn-outline-primary { color: #2479b9; border-color: #2479b9; }
+.btn-outline-primary:hover { background: #2479b9; border-color: #2479b9; }
+a { color: #176eaa; }
+.form-card { max-width: 660px; }
+.form-card input, .form-card textarea, .form-card select { display: block; width: 100%; padding: .5rem .75rem; border: 1px solid #c5d9e7; border-radius: .4rem; background: #fff; }
+.form-card input[type=file] { padding: .4rem; }
+.tag-pill { background: #e1f1ff; color: #155b90; }
+.status-complete { background: #dcf3e8; color: #216e46; }
+.status-pending { background: #e1f1ff; color: #155b90; }
+.status-failed { background: #fff1d6; color: #825509; }
