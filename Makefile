@@ -18,12 +18,12 @@ run: venv
 
 make_migrations: venv
 	./$(VENV)/bin/python3.12 manage.py makemigrations
-	./$(VENV)/bin/python3.12 manage.py sqlmigrate game 0008  # change this
+	./$(VENV)/bin/python3.12 manage.py sqlmigrate documents 0001  # change this
 	./$(VENV)/bin/python3.12 manage.py migrate
 
 migrate: venv
 	./$(VENV)/bin/python3.12 manage.py migrate --run-syncdb
 
-#  createsuperuser: venv
-#	 ./$(VENV)/bin/python3.12 manage.py createsuperuser
-	# mrommel + +++
+createsuperuser: venv
+	./$(VENV)/bin/python3.12 manage.py createsuperuser
+# mrommel + 0IsL7F594nyxYqEL
