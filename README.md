@@ -1,4 +1,4 @@
-# Smart Documents
+# <img src="documents/static/documents/favicon.svg" alt="" width="32" height="32"> Smart Documents
 
 A Django service for storing documents within projects and extracting first-pass metadata with a local, OpenAI-compatible OMLX server.
 
