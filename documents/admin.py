@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Collection, Document, Project, Tag
+from .models import Collection, Document, DocumentAddress, Project, Tag
 
 
 @admin.register(Project)
@@ -20,3 +20,10 @@ class DocumentAdmin(admin.ModelAdmin):
 	list_display = ("original_name", "project", "status", "uploaded_at")
 	list_filter = ("project", "status")
 	search_fields = ("original_name",)
+
+
+@admin.register(DocumentAddress)
+class DocumentAddressAdmin(admin.ModelAdmin):
+	list_display = ("address", "category", "document", "geocode_error")
+	list_filter = ("category",)
+	search_fields = ("address", "document__original_name")

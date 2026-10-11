@@ -14,4 +14,5 @@ urlpatterns = [
 	path("projects/<int:pk>/documents/<int:document_id>/", views.document_detail, name="document_detail"),
 	path("projects/<int:pk>/documents/<int:document_id>/download/", views.document_download, name="document_download"),
 	path("projects/<int:pk>/documents/<int:document_id>/retry/", views.document_retry, name="document_retry"),
+	path("projects/<int:pk>/documents/<int:document_id>/retry-geocoding/", views.document_retry_geocoding, name="document_retry_geocoding"),
 ]

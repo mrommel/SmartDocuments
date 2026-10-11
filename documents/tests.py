@@ -1,4 +1,5 @@
 from io import BytesIO
+import json
 import os
 from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
@@ -13,8 +14,9 @@ from django_tasks_db.models import DBTaskResult
 from PIL import Image
 
 from .extraction import _request, extract_metadata
-from .models import Collection, Document, Project, Tag
-from .tasks import analyze_document
+from .geocoding import geocode_address
+from .models import Collection, Document, DocumentAddress, Project, Tag
+from .tasks import analyze_document, retry_address_geocoding
 
 
 class DocumentFlowTests(TestCase):
@@ -155,6 +157,79 @@ class DocumentFlowTests(TestCase):
 		self.assertContains(self.client.post(collection_url, {"name": "Letters"}), "already exists")
 		self.assertContains(self.client.post(tag_url, {"name": "Urgent"}), "already exists")
 
+	@patch("documents.tasks.geocode_address", return_value=({"city": "Berlin", "lat": 52.52, "lng": 13.4}, ""))
+	@patch("documents.tasks.extract_metadata", return_value={"title": "Invoice", "addresses": [{"address": "Main Street 1, Berlin", "category": "customer"}]})
+	def test_opt_in_addresses_stored_and_reanalysis_replaces_them(self, extractor, geocoder):
+		with self.captureOnCommitCallbacks(execute=True):
+			self.upload(find_addresses="on")
+		document = Document.objects.get()
+		self.assertTrue(document.find_addresses)
+		analyze_document.call(document.pk)
+		document.refresh_from_db()
+		address = document.addresses.get()
+		self.assertEqual(address.category, DocumentAddress.Category.CUSTOMER)
+		self.assertEqual(address.geocode_result["city"], "Berlin")
+		self.assertNotIn("addresses", document.metadata)
+		geocoder.assert_called_once_with("Main Street 1, Berlin")
+		detail = reverse("document_detail", args=[self.project.pk, document.pk])
+		self.assertContains(self.client.get(detail), "Main Street 1, Berlin")
+		self.assertContains(self.client.get(detail), "city-level")
+		with self.captureOnCommitCallbacks(execute=True):
+			self.client.post(reverse("document_retry", args=[self.project.pk, document.pk]), {"address_option": "1"})
+		document.refresh_from_db()
+		self.assertFalse(document.find_addresses)
+		self.assertEqual(document.addresses.count(), 1)
+		analyze_document.call(document.pk)
+		self.assertFalse(document.addresses.exists())
+		self.assertEqual(geocoder.call_count, 1)
+
+	@patch("documents.tasks.geocode_address", return_value=(None, "Geocoding service is unavailable."))
+	@patch("documents.tasks.extract_metadata", return_value={"title": "Letter", "addresses": [{"address": "Oak Road 2, Paris", "category": "private"}]})
+	def test_geocoding_failure_keeps_document_complete_and_address(self, extractor, geocoder):
+		self.upload(find_addresses="on")
+		document = Document.objects.get()
+		analyze_document.call(document.pk)
+		document.refresh_from_db()
+		self.assertEqual(document.status, Document.Status.COMPLETE)
+		self.assertEqual(document.addresses.get().geocode_error, "Geocoding service is unavailable.")
+
+	@patch("documents.tasks.extract_metadata", side_effect=ValueError("LLM unavailable"))
+	def test_failed_reanalysis_preserves_previous_addresses(self, extractor):
+		self.upload(find_addresses="on")
+		document = Document.objects.get()
+		DocumentAddress.objects.create(document=document, address="Oak Road 2, Paris")
+		with patch("documents.tasks.logger"), self.assertRaises(ValueError):
+			analyze_document.call(document.pk)
+		self.assertEqual(document.addresses.count(), 1)
+
+	@patch("documents.tasks.geocode_address", return_value=({"city": "Praha", "lat": 50.07, "lng": 14.43}, ""))
+	def test_retry_geocoding_only_updates_unmatched_addresses(self, geocoder):
+		self.upload(find_addresses="on")
+		document = Document.objects.get()
+		document.status = Document.Status.COMPLETE
+		document.save(update_fields=["status"])
+		unmatched = DocumentAddress.objects.create(document=document, address="Radomská 473/9, 181 00 Praha", category="customer", geocode_error="Geocoding service is unavailable.")
+		matched = DocumentAddress.objects.create(document=document, address="Other address", geocode_result={"city": "Berlin", "lat": 52, "lng": 13})
+		url = reverse("document_retry_geocoding", args=[self.project.pk, document.pk])
+		self.assertContains(self.client.get(reverse("document_detail", args=[self.project.pk, document.pk])), "Retry geocoding")
+		self.assertEqual(self.client.get(url).status_code, 405)
+		self.assertEqual(self.client.post(reverse("document_retry_geocoding", args=[self.other.pk, document.pk])).status_code, 404)
+		with self.captureOnCommitCallbacks(execute=True):
+			self.assertRedirects(self.client.post(url), reverse("document_detail", args=[self.project.pk, document.pk]))
+		geocoder.assert_not_called()
+		self.assertEqual(DBTaskResult.objects.count(), 1)
+		retry_address_geocoding.call(document.pk)
+		unmatched.refresh_from_db()
+		matched.refresh_from_db()
+		self.assertEqual(unmatched.geocode_result["city"], "Praha")
+		self.assertEqual(unmatched.geocode_error, "")
+		self.assertEqual(matched.geocode_result["city"], "Berlin")
+		geocoder.assert_called_once_with("Radomská 473/9, 181 00 Praha")
+		self.assertNotContains(self.client.get(reverse("document_detail", args=[self.project.pk, document.pk])), "Retry geocoding")
+		with self.captureOnCommitCallbacks(execute=True):
+			self.client.post(url)
+		self.assertEqual(DBTaskResult.objects.count(), 1)
+
 
 class ExtractionTests(TestCase):
 	def setUp(self):
@@ -287,6 +362,56 @@ class ExtractionTests(TestCase):
 				_request("http://127.0.0.1:8000/v1/models")
 		self.assertNotIn("test-secret", str(caught.exception))
 
+	def test_optional_addresses_are_cleaned_and_bounded(self):
+		document = self.asset("letter.txt", b"A customer address: Oak Road 2, Paris")
+		document.find_addresses = True
+		addresses = ([{"address": " Oak Road 2, Paris ", "category": "CUSTOMER"},
+		              {"address": "oak road 2, paris", "category": "shop"},
+		              {"address": "Other Road 1, Paris", "category": "not-a-category"},
+		              {"address": 123, "category": "private"}] +
+		             [{"address": f"Road {i}, Paris", "category": "business"} for i in range(30)])
+		with patch("documents.extraction._request", side_effect=[
+			{"data": [{"id": "model"}]},
+			{"choices": [{"message": {"content": json.dumps({"title": "Letter", "addresses": addresses})}}]},
+		]) as request:
+			result = extract_metadata(document)
+		self.assertIn("addresses (array", request.call_args.args[1]["messages"][0]["content"])
+		self.assertEqual(len(result["addresses"]), 20)
+		self.assertEqual(result["addresses"][0], {"address": "Oak Road 2, Paris", "category": "customer"})
+		self.assertEqual(result["addresses"][1]["category"], "other")
+
+	def test_geocoding_query_and_no_matches(self):
+		with patch("documents.geocoding.urlopen", side_effect=[BytesIO(b'{"results":[]}'), BytesIO(b'{"results":[]}')]) as urlopen:
+			self.assertEqual(geocode_address("Oak Road 2, Paris"), (None, "No geocoding match found."))
+		self.assertIn("text=Oak+Road+2%2C+Paris", urlopen.call_args_list[0].args[0])
+		self.assertIn("text=Paris", urlopen.call_args_list[1].args[0])
+		self.assertEqual(urlopen.call_args.kwargs["timeout"], 10)
+
+	def test_city_fallback_with_postal_code_and_unicode(self):
+		match = {"city": "Praha", "lat": 50.075, "lng": 14.438}
+		with patch("documents.geocoding.urlopen", side_effect=[
+			BytesIO(b'{"results":[]}'), BytesIO(json.dumps({"results": [match]}).encode()),
+		]) as urlopen:
+			self.assertEqual(geocode_address("Radomská 473/9, 181 00 Praha"), (match, ""))
+		self.assertIn("text=Praha", urlopen.call_args_list[1].args[0])
+		with patch("documents.geocoding.urlopen", side_effect=[
+			BytesIO(b'{"results":[]}'), BytesIO(json.dumps({"results": [match]}).encode()),
+		]) as urlopen:
+			self.assertEqual(geocode_address("Brozánky 83, 276 01 MĚLNÍK"), (match, ""))
+		self.assertIn("text=M%C4%9ALN%C3%8DK", urlopen.call_args_list[1].args[0])
+
+	def test_successful_full_match_does_not_retry_city(self):
+		match = {"city": "Praha", "lat": 50.075, "lng": 14.438}
+		with patch("documents.geocoding.urlopen", return_value=BytesIO(json.dumps({"results": [match]}).encode())) as urlopen:
+			self.assertEqual(geocode_address("Radomská 473/9, 181 00 Praha"), (match, ""))
+		urlopen.assert_called_once()
+
+	def test_geocoding_service_errors_are_recorded(self):
+		with patch("documents.geocoding.urlopen", side_effect=HTTPError("url", 503, "", {}, None)):
+			self.assertEqual(geocode_address("Oak Road 2"), (None, "Geocoding service returned HTTP 503."))
+		with patch("documents.geocoding.urlopen", return_value=BytesIO(b'{"results":[{"lat":"wrong","lng":1}]}')):
+			self.assertEqual(geocode_address("Oak Road 2"), (None, "Geocoding service returned an invalid response."))
+
 
 class WorkerTests(TransactionTestCase):
 	def setUp(self):
@@ -323,3 +448,21 @@ class WorkerTests(TransactionTestCase):
 		self.assertEqual(document.status, Document.Status.FAILED)
 		self.assertIn("Authentication rejected", document.extraction_error)
 		self.assertEqual(DBTaskResult.objects.get().status, "FAILED")
+
+	@patch("documents.tasks.geocode_address", return_value=({"city": "Praha", "lat": 50.075, "lng": 14.438}, ""))
+	def test_database_worker_retries_saved_addresses_without_llm(self, geocoder):
+		project = Project.objects.create(name="Geocoding")
+		document = Document.objects.create(
+			project=project, file=SimpleUploadedFile("letter.txt", b"Hello"),
+			original_name="letter.txt", file_size=5, status=Document.Status.COMPLETE,
+			metadata={"title": "Saved"},
+		)
+		address = DocumentAddress.objects.create(document=document, address="Radomská 473/9, 181 00 Praha", geocode_error="Geocoding service is unavailable.")
+		response = self.client.post(reverse("document_retry_geocoding", args=[project.pk, document.pk]))
+		self.assertEqual(response.status_code, 302)
+		call_command("db_worker", batch=True, no_startup_delay=True, verbosity=0)
+		address.refresh_from_db()
+		document.refresh_from_db()
+		self.assertEqual(address.geocode_result["city"], "Praha")
+		self.assertEqual(document.metadata, {"title": "Saved"})
+		geocoder.assert_called_once_with(address.address)

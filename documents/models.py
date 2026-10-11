@@ -59,6 +59,7 @@ class Document(models.Model):
 	status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
 	metadata = models.JSONField(default=dict, blank=True)
 	extraction_error = models.TextField(blank=True)
+	find_addresses = models.BooleanField(default=False)
 
 	class Meta:
 		ordering = ["-uploaded_at"]
@@ -73,3 +74,24 @@ class Document(models.Model):
 				raise ValidationError("Collections must belong to the document's project.")
 			if self.tags.exclude(project_id=self.project_id).exists():
 				raise ValidationError("Tags must belong to the document's project.")
+
+
+class DocumentAddress(models.Model):
+	class Category(models.TextChoices):
+		CUSTOMER = "customer", "Customer"
+		SHOP = "shop", "Shop"
+		PRIVATE = "private", "Private"
+		BUSINESS = "business", "Business"
+		OTHER = "other", "Other"
+
+	document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="addresses")
+	address = models.CharField(max_length=255)
+	category = models.CharField(max_length=12, choices=Category.choices, default=Category.OTHER)
+	geocode_result = models.JSONField(null=True, blank=True)
+	geocode_error = models.CharField(max_length=255, blank=True)
+
+	class Meta:
+		ordering = ["pk"]
+
+	def __str__(self):
+		return self.address

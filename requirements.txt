@@ -3,7 +3,7 @@ django-admin-inline-paginator==0.4.0
 django-chunkator==2.0.0
 django-crispy-forms==2.7
 django-extensions==4.1
-django==6.1.1
+django==6.1.2
 djangorestframework==3.18.1
 django-tasks==0.12.0
 django-tasks-db==0.13.0

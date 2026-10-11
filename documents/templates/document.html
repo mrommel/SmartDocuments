@@ -15,6 +15,9 @@
         {% if document.status == 'failed' or document.status == 'complete' %}
         <form action="{% url 'document_retry' project.pk document.pk %}" method="post" class="mb-3">
             {% csrf_token %}
+            <input type="hidden" name="address_option" value="1">
+            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="find_addresses" id="find_addresses" {% if document.find_addresses %}checked{% endif %}>
+                <label class="form-check-label" for="find_addresses">Find and geocode addresses (city-level coordinates)</label></div>
             <button class="btn btn-outline-primary" type="submit">{% if document.status == 'complete' %}Re-do analysis{% else %}Retry extraction{% endif %}</button>
         </form>
         {% endif %}
@@ -26,6 +29,18 @@
             <dt class="col-sm-3">Keywords</dt><dd class="col-sm-9">{{ document.metadata.keywords|join:', '|default:'—' }}</dd></dl>
         {% else %}<p class="text-muted mb-0">No metadata available yet.</p>{% endif %}
     </div></div>
+    {% if document.find_addresses or addresses %}
+    <div class="card mt-4"><div class="card-body p-4"><h2 class="h4">Addresses</h2>
+        {% if can_retry_geocoding %}<form method="post" action="{% url 'document_retry_geocoding' project.pk document.pk %}" class="mb-3">
+            {% csrf_token %}<button type="submit" class="btn btn-outline-primary">Retry geocoding</button>
+        </form>{% endif %}
+        {% if addresses %}<ul class="list-group list-group-flush">
+        {% for item in addresses %}<li class="list-group-item px-0"><strong>{{ item.get_category_display }}</strong>: {{ item.address }}
+            {% if item.geocode_result %}<div class="small text-muted">{{ item.geocode_result.city }}{% if item.geocode_result.state %}, {{ item.geocode_result.state }}{% endif %}{% if item.geocode_result.country %}, {{ item.geocode_result.country }}{% endif %} — {{ item.geocode_result.lat }}, {{ item.geocode_result.lng }} (city-level)</div>
+            {% elif item.geocode_error %}<div class="small text-warning">{{ item.geocode_error }}</div>{% endif %}
+        </li>{% endfor %}</ul>
+        {% else %}<p class="text-muted mb-0">{% if document.status == 'pending' or document.status == 'processing' %}Address search will run during analysis.{% else %}No addresses found.{% endif %}</p>{% endif %}
+    </div></div>{% endif %}
 </section><aside class="col-lg-4"><div class="card"><div class="card-body p-4">
     <h2 class="h5">Organize document</h2>
     <p class="small text-muted">Select one or more collections and custom tags in {{ project.name }}.</p>

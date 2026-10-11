@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import CollectionForm, DocumentForm, OrganizationForm, ProjectForm, TagForm
 from .models import Document, Project
-from .tasks import analyze_document
+from .tasks import analyze_document, retry_address_geocoding
 
 logger = logging.getLogger(__name__)
 
@@ -118,8 +118,12 @@ def document_detail(request, pk, document_id):
 		form.save()
 		messages.success(request, "Document organization updated.")
 		return redirect("document_detail", pk=pk, document_id=document_id)
-	return render(request, "document.html", {"document": document, "project": document.project, "form": form})
-
+	return render(request, "document.html", {
+		"document": document, "project": document.project, "form": form,
+		"addresses": document.addresses.all(),
+		"can_retry_geocoding": document.status == Document.Status.COMPLETE and
+			document.addresses.filter(geocode_result__isnull=True).exists(),
+	})
 
 @require_POST
 def document_retry(request, pk, document_id):
@@ -127,8 +131,28 @@ def document_retry(request, pk, document_id):
 	if document.status in (Document.Status.PENDING, Document.Status.PROCESSING):
 		messages.info(request, "Document analysis is already queued or in progress.")
 	else:
+		if "address_option" in request.POST:
+			document.find_addresses = request.POST.get("find_addresses") == "on"
+			document.save(update_fields=["find_addresses"])
 		queue_document(document)
 		messages.success(request, "Document queued for analysis again.")
+	return redirect("document_detail", pk=pk, document_id=document_id)
+
+
+@require_POST
+def document_retry_geocoding(request, pk, document_id):
+	document = _document(pk, document_id)
+	if document.status != Document.Status.COMPLETE or not document.addresses.filter(geocode_result__isnull=True).exists():
+		messages.info(request, "No address geocoding needs retrying right now.")
+	else:
+		def enqueue():
+			try:
+				retry_address_geocoding.enqueue(document.pk)
+			except Exception:
+				logger.exception("Could not queue address geocoding for document %s", document.pk)
+
+		transaction.on_commit(enqueue)
+		messages.success(request, "Address geocoding queued. Refresh this page to see results.")
 	return redirect("document_detail", pk=pk, document_id=document_id)
 
 

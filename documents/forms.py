@@ -47,7 +47,9 @@ class TagForm(forms.ModelForm):
 class DocumentForm(forms.ModelForm):
     class Meta:
         model = Document
-        fields = ["file", "collections", "tags"]
+        fields = ["file", "collections", "tags", "find_addresses"]
+        labels = {"find_addresses": "Find and geocode addresses"}
+        help_texts = {"find_addresses": "Categorize addresses found in the document and look up city-level coordinates."}
         widgets = {
             "collections": forms.SelectMultiple(attrs={"class": "form-select", "size": 4}),
             "tags": forms.SelectMultiple(attrs={"class": "form-select", "size": 4}),

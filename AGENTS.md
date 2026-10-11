@@ -18,7 +18,7 @@ Smart Documents is a Django app for organizing uploaded files by project, collec
 - `documents/forms.py` and `documents/views.py` handle uploads, project-scoped selections, document organization, and retry/re-analysis. Preserve cross-project validation.
 - Uploads enqueue `analyze_document` from `documents/tasks.py` after transaction commit. Jobs live in SQLite via `django-tasks-db`; the separate `db_worker` process is required to process them. Keep task state transitions and retry behavior consistent.
 - `documents/extraction.py` reads supported document types and talks to OMLX. Keep file-size limits, text/image handling, and timeout/error behavior intact when modifying extraction.
-- `documents/templates/` and `documents/static/documents/` contain the server-rendered UI and styling. The README heading uses `documents/static/documents/favicon.svg`; keep the relative link working if this asset moves. URLs are defined in `documents/urls.py` and `setup/urls.py`.
+- `documents/templates/` and `documents/static/documents/` contain the server-rendered UI and styling. URLs are defined in `documents/urls.py` and `setup/urls.py`.
 
 ## Configuration and tests
 
